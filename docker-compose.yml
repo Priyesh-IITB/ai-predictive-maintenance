@@ -33,7 +33,11 @@ services:
       start_period: 10s
     mem_limit: 1g
     networks:
-      - predictive-maintenance-network
+      predictive-maintenance-network:
+        driver: bridge
+        ipam:
+          config:
+            - subnet: 172.20.0.0/16
       
   rca-engine:
     build:
