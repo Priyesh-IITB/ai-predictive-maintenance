@@ -1,0 +1,12 @@
+.DS_Store
+.env
+.venv/
+.vscode/
+mlruns/
+data/
+models/
+*.pyc
+__pycache__/
+*.log
+*.sqlite
+*.ipynb_checkpoints
