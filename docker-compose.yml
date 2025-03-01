@@ -1,0 +1,162 @@
+services:
+  api:
+    build:
+        args:
+            - XGBOOST_VERSION=2.0.3   # Pass to Dockerfile
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data
+      - ./hf_cache:/app/hf_cache
+    env_file:
+      - .env
+    environment:
+      - LOG_LEVEL=INFO
+      - USE_DUMMY_MODEL=1
+      - RANDOMIZE_PREDICTIONS=1
+      - MODEL_FORMAT=json
+      - XGBOOST_VERSION=2.0.3     # Pin version
+      - DUMMY_MODEL_PATH=/app/models/dummy_model.json
+      - TWILIO_ACCOUNT_SID
+      - TWILIO_AUTH_TOKEN
+      - TWILIO_PHONE_NUMBER
+      - SLACK_WEBHOOK_URL
+      - RCA_SERVICE_URL=http://rca-engine:8080/analyze
+      - PYTHONPATH=/app
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s --fail http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    mem_limit: 1g
+    networks:
+      - predictive-maintenance-network
+      
+  rca-engine:
+    build:
+      context: .
+      dockerfile: Dockerfile.rca
+    ports:
+      - "${RCA_PORT:-8080}:8080"
+    volumes:
+      - ./rca_templates:/app/rca_templates
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./hf_cache:/app/hf_cache
+    env_file:
+      - .env
+    environment:
+      - LOG_LEVEL=INFO
+      - TRANSFORMERS_CACHE=/app/models/transformers
+      - HF_TOKEN=${HF_TOKEN:-}
+      - HF_HOME=${HF_CACHE_DIR:-/app/hf_cache}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s --fail http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    mem_limit: 4g
+    deploy:
+      resources:
+        reservations:
+          memory: 2G
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - predictive-maintenance-network
+  
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--quiet", "http://localhost:9090/-/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    mem_limit: 512m
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - predictive-maintenance-network
+  
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - ./grafana/dashboard.json:/var/lib/grafana/dashboards/dashboard.json
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources
+      - grafana-data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/dashboard.json
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    mem_limit: 512m
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - predictive-maintenance-network
+  
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.streamlit
+    ports:
+      - "${DASHBOARD_PORT:-8501}:8501"
+    volumes:
+      - ./scripts:/app/scripts
+      - ./data:/app/data
+    environment:
+      - API_URL=http://api:8000
+      - STREAMLIT_SERVER_ENABLE_CORS=false
+      - PYTHONPATH=/app
+      - STREAMLIT_SERVER_MAX_UPLOAD_SIZE=50
+      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8501/_stcore/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    mem_limit: 512m
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - predictive-maintenance-network
+
+volumes:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  predictive-maintenance-network:
+    driver: bridge

@@ -1,12 +1,52 @@
-.DS_Store
-.env
-.venv/
-.vscode/
-mlruns/
-data/
-models/
-*.pyc
+# Python
+*.py[cod]
+*$py.class
 __pycache__/
-*.log
-*.sqlite
-*.ipynb_checkpoints
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+data/
+!data/.gitkeep
+models/*.bin
+models/*.json
+!models/.gitkeep
+hf_cache/
+mlruns/
+prometheus-data/
+grafana-data/
+logs/
