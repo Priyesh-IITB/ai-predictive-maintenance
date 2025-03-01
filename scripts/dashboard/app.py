@@ -518,3 +518,14 @@ current_time = time.time()
 if current_time - st.session_state.last_refresh > refresh_rate:
     st.rerun()
     st.session_state.last_refresh = current_time
+
+def main():
+    st.set_page_config(
+        page_title="Predictive Maintenance",
+        layout="wide",
+        initial_sidebar_state="expanded"
+    )
+    display_dashboard()
+
+if __name__ == "__main__":
+    main()
